@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { SBTI_TYPES, getTypeByCode, SBTIType } from './sbti-types';
 import { SBTI_QUESTIONS, calculateResult } from './sbti-questions';
+import { loadApiConfig, buildImageRequest } from './config';
+import SettingsModal from './SettingsModal';
 import './App.css';
 
 type Page = 'home' | 'test' | 'result' | 'types';
@@ -12,6 +14,7 @@ function App() {
   const [result, setResult] = useState<SBTIType | null>(null);
   const [selectedType, setSelectedType] = useState<SBTIType | null>(null);
   const [showTypeDetail, setShowTypeDetail] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Photo generation states
   const [showPhotoModal, setShowPhotoModal] = useState(false);
@@ -20,6 +23,7 @@ function App() {
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [usingAPI, setUsingAPI] = useState(false);
 
   // 测试中
   const handleAnswer = (answerIndex: number) => {
@@ -93,9 +97,11 @@ function App() {
 
     setIsGenerating(true);
     setGenerationError(null);
+    setUsingAPI(false);
 
     try {
-      // 构建人格特征描述
+      // 加载API配置
+      const apiConfig = loadApiConfig();
       const traitsText = result.traits.join('、');
 
       // 将文件转换为base64
@@ -109,48 +115,85 @@ Humor vibe: ${result.humor}
 Keep facial features recognizable but stylized in anime chibi format.
 Background: colorful gradient with floating elements and cute decorations.`;
 
-      // 尝试调用API生成图片
-      try {
-        const response = await fetch('/api/generate-sbti', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            imageData: base64,
-            personality: {
+      // 如果启用了自定义API，尝试调用
+      if (apiConfig.enableAPI && apiConfig.apiEndpoint) {
+        try {
+          const requestBody = buildImageRequest(
+            base64,
+            {
               code: result.code,
               name: result.name,
               title: result.title,
               traits: result.traits,
               humor: result.humor,
             },
-            prompt: aiPrompt,
-          }),
-        });
+            aiPrompt
+          );
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.imageUrl) {
-            setGeneratedImage(data.imageUrl);
-            setIsGenerating(false);
-            return;
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+          };
+
+          if (apiConfig.apiKey) {
+            headers['Authorization'] = `Bearer ${apiConfig.apiKey}`;
           }
+
+          const response = await fetch(apiConfig.apiEndpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(requestBody),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+
+            // 支持多种返回格式
+            let imageUrl: string | null = null;
+
+            if (typeof data === 'string') {
+              // 直接返回base64或URL
+              imageUrl = data.startsWith('data:') || data.startsWith('http')
+                ? data
+                : `data:image/png;base64,${data}`;
+            } else if (data.imageUrl) {
+              imageUrl = data.imageUrl;
+            } else if (data.image) {
+              imageUrl = data.image.startsWith('data:') || data.image.startsWith('http')
+                ? data.image
+                : `data:image/png;base64,${data.image}`;
+            } else if (data.url) {
+              imageUrl = data.url;
+            } else if (data.result) {
+              imageUrl = data.result;
+            }
+
+            if (imageUrl) {
+              setGeneratedImage(imageUrl);
+              setUsingAPI(true);
+              setIsGenerating(false);
+              return;
+            }
+          } else {
+            console.log('API返回错误:', response.status);
+          }
+        } catch (apiError) {
+          console.log('API调用失败:', apiError);
         }
-      } catch (apiError) {
-        console.log('API调用失败，使用Canvas预览:', apiError);
       }
 
-      // 如果API不可用，使用Canvas即时预览
-      const { generateCustomSBTI } = await import('./imageGenerator');
-      const resultImage = await generateCustomSBTI(
-        userPhotoFile,
-        result.name,
-        traitsText,
-        result.humor
-      );
-
-      setGeneratedImage(resultImage);
+      // 如果API不可用或未启用，检查是否允许Canvas预览
+      if (apiConfig.enableCanvasPreview || !apiConfig.enableAPI) {
+        const { generateCustomSBTI } = await import('./imageGenerator');
+        const resultImage = await generateCustomSBTI(
+          userPhotoFile,
+          result.name,
+          traitsText,
+          result.humor
+        );
+        setGeneratedImage(resultImage);
+      } else {
+        setGenerationError('API生成失败且Canvas预览已禁用，请检查API配置');
+      }
     } catch (error) {
       console.error('生成失败:', error);
       setGenerationError('图片生成失败，请重试');
@@ -755,6 +798,21 @@ Background: colorful gradient with floating elements and cute decorations.`;
           </div>
         </div>
       )}
+
+      {/* 设置按钮 - 固定在右下角 */}
+      <button
+        onClick={() => setShowSettings(true)}
+        className="fixed bottom-6 right-6 z-40 w-14 h-14 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-full shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-300 flex items-center justify-center"
+        title="API设置"
+      >
+        ⚙️
+      </button>
+
+      {/* API设置弹窗 */}
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
     </div>
   );
 }
