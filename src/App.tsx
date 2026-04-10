@@ -13,6 +13,14 @@ function App() {
   const [selectedType, setSelectedType] = useState<SBTIType | null>(null);
   const [showTypeDetail, setShowTypeDetail] = useState(false);
 
+  // Photo generation states
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [userPhoto, setUserPhoto] = useState<string | null>(null);
+  const [userPhotoFile, setUserPhotoFile] = useState<File | null>(null);
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+
   // 测试中
   const handleAnswer = (answerIndex: number) => {
     const newAnswers = [...answers, answerIndex];
@@ -49,6 +57,84 @@ function App() {
   const viewTypeDetail = (type: SBTIType) => {
     setSelectedType(type);
     setShowTypeDetail(true);
+  };
+
+  // 处理照片上传
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        alert('图片大小不能超过10MB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setUserPhoto(event.target?.result as string);
+        setUserPhotoFile(file);
+        setGeneratedImage(null);
+        setGenerationError(null);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // 打开生成照片弹窗
+  const openPhotoModal = () => {
+    setShowPhotoModal(true);
+    setUserPhoto(null);
+    setUserPhotoFile(null);
+    setGeneratedImage(null);
+    setGenerationError(null);
+  };
+
+  // 使用AI生成专属SBTI图片
+  const generateSBTIImage = async () => {
+    if (!userPhotoFile || !result) return;
+
+    setIsGenerating(true);
+    setGenerationError(null);
+
+    try {
+      // 构建人格特征描述
+      const traitsText = result.traits.join('、');
+
+      // 直接调用图片生成器
+      const { generateCustomSBTI } = await import('./imageGenerator');
+      const resultImage = await generateCustomSBTI(
+        userPhotoFile,
+        result.name,
+        traitsText,
+        result.humor
+      );
+
+      setGeneratedImage(resultImage);
+    } catch (error) {
+      console.error('生成失败:', error);
+      setGenerationError('图片生成失败，请重试');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // 下载生成的图片
+  const downloadGeneratedImage = () => {
+    if (!generatedImage) return;
+
+    const link = document.createElement('a');
+    link.href = generatedImage;
+    link.download = `SBTI_${result?.code}_${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // 关闭弹窗时清理状态
+  const closePhotoModal = () => {
+    setShowPhotoModal(false);
+    setUserPhoto(null);
+    setUserPhotoFile(null);
+    setGeneratedImage(null);
+    setGenerationError(null);
   };
 
   return (
@@ -275,6 +361,12 @@ function App() {
               再测一次 🔄
             </button>
             <button
+              onClick={openPhotoModal}
+              className="px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold text-lg rounded-2xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+            >
+              生成我的专属图 ✨
+            </button>
+            <button
               onClick={() => setPage('types')}
               className="px-8 py-4 bg-white/10 backdrop-blur-sm text-white font-bold text-lg rounded-2xl border border-white/20 hover:bg-white/20 transition-all duration-300"
             >
@@ -393,6 +485,142 @@ function App() {
                 ← 返回首页
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 照片生成弹窗 */}
+      {showPhotoModal && result && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          onClick={closePhotoModal}
+        >
+          <div
+            className="w-full max-w-2xl bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-6 md:p-10 shadow-2xl border border-white/10 animate-modal-in overflow-auto max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center mb-6">
+              <h3 className="text-3xl font-black text-white mb-2">
+                生成你的专属SBTI形象
+              </h3>
+              <p className="text-white/60">
+                上传你的照片，AI将为你生成专属的{result.name}风格形象
+              </p>
+            </div>
+
+            {/* 人格信息预览 */}
+            <div className="flex items-center justify-center gap-4 mb-6 p-4 bg-white/5 rounded-xl">
+              <img
+                src={result.image}
+                alt={result.name}
+                className="w-16 h-16 rounded-xl"
+              />
+              <div className="text-left">
+                <p className="text-2xl font-black text-white">{result.code}</p>
+                <p className="text-white/70">{result.name}</p>
+              </div>
+            </div>
+
+            {/* 照片上传区域 */}
+            <div className="mb-6">
+              {!userPhoto ? (
+                <label className="block w-full p-12 border-2 border-dashed border-white/20 rounded-2xl cursor-pointer hover:border-pink-500/50 hover:bg-pink-500/5 transition-all duration-300">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                  />
+                  <div className="text-center">
+                    <div className="w-20 h-20 mx-auto mb-4 bg-white/10 rounded-full flex items-center justify-center">
+                      <span className="text-4xl">📷</span>
+                    </div>
+                    <p className="text-white font-semibold mb-2">点击上传照片</p>
+                    <p className="text-white/50 text-sm">支持 JPG、PNG 格式，最大 10MB</p>
+                  </div>
+                </label>
+              ) : (
+                <div className="relative">
+                  <img
+                    src={userPhoto}
+                    alt="用户照片"
+                    className="w-full max-h-80 object-contain rounded-2xl"
+                  />
+                  <button
+                    onClick={() => {
+                      setUserPhoto(null);
+                      setUserPhotoFile(null);
+                    }}
+                    className="absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 错误提示 */}
+            {generationError && (
+              <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-xl text-red-300 text-center">
+                {generationError}
+              </div>
+            )}
+
+            {/* 生成结果 */}
+            {generatedImage && (
+              <div className="mb-6">
+                <p className="text-white/80 text-center mb-3 font-semibold">✨ 生成的专属图片</p>
+                <div className="relative">
+                  <img
+                    src={generatedImage}
+                    alt="生成的SBTI图片"
+                    className="w-full rounded-2xl shadow-lg"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 操作按钮 */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              {!generatedImage ? (
+                <button
+                  onClick={generateSBTIImage}
+                  disabled={!userPhoto || isGenerating}
+                  className={`flex-1 py-4 font-bold text-lg rounded-2xl transition-all duration-300 ${
+                    userPhoto && !isGenerating
+                      ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
+                      : 'bg-white/10 text-white/40 cursor-not-allowed'
+                  }`}
+                >
+                  {isGenerating ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="animate-spin">⚙️</span>
+                      AI生成中...
+                    </span>
+                  ) : (
+                    '🎨 生成专属图片'
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={downloadGeneratedImage}
+                  className="flex-1 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold text-lg rounded-2xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+                >
+                  ⬇️ 下载图片
+                </button>
+              )}
+              <button
+                onClick={closePhotoModal}
+                className="flex-1 py-4 bg-white/10 text-white font-bold text-lg rounded-2xl border border-white/20 hover:bg-white/20 transition-all duration-300"
+              >
+                关闭
+              </button>
+            </div>
+
+            {/* 提示 */}
+            <p className="mt-4 text-white/40 text-xs text-center">
+              💡 提示：生成效果取决于照片质量和角度，正脸照片效果更佳
+            </p>
           </div>
         </div>
       )}
