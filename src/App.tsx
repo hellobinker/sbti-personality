@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { SBTI_TYPES, getTypeByCode, SBTIType } from './sbti-types';
 import { SBTI_QUESTIONS, calculateResult } from './sbti-questions';
-import { loadApiConfig, buildImageRequest } from './config';
+import { loadApiConfig, buildImageRequest, parseOpenAIResponse } from './config';
 import SettingsModal from './SettingsModal';
 import './App.css';
 
@@ -127,7 +127,8 @@ Background: colorful gradient with floating elements and cute decorations.`;
               traits: result.traits,
               humor: result.humor,
             },
-            aiPrompt
+            aiPrompt,
+            apiConfig.apiFormat
           );
 
           const headers: Record<string, string> = {
@@ -147,24 +148,30 @@ Background: colorful gradient with floating elements and cute decorations.`;
           if (response.ok) {
             const data = await response.json();
 
-            // 支持多种返回格式
+            // 优先尝试OpenAI格式解析
             let imageUrl: string | null = null;
 
-            if (typeof data === 'string') {
-              // 直接返回base64或URL
-              imageUrl = data.startsWith('data:') || data.startsWith('http')
-                ? data
-                : `data:image/png;base64,${data}`;
-            } else if (data.imageUrl) {
-              imageUrl = data.imageUrl;
-            } else if (data.image) {
-              imageUrl = data.image.startsWith('data:') || data.image.startsWith('http')
-                ? data.image
-                : `data:image/png;base64,${data.image}`;
-            } else if (data.url) {
-              imageUrl = data.url;
-            } else if (data.result) {
-              imageUrl = data.result;
+            if (apiConfig.apiFormat === 'openai') {
+              imageUrl = parseOpenAIResponse(data);
+            }
+
+            // 如果OpenAI解析失败，尝试其他格式
+            if (!imageUrl) {
+              if (typeof data === 'string') {
+                imageUrl = data.startsWith('data:') || data.startsWith('http')
+                  ? data
+                  : `data:image/png;base64,${data}`;
+              } else if (data.imageUrl) {
+                imageUrl = data.imageUrl;
+              } else if (data.image) {
+                imageUrl = data.image.startsWith('data:') || data.image.startsWith('http')
+                  ? data.image
+                  : `data:image/png;base64,${data.image}`;
+              } else if (data.url) {
+                imageUrl = data.url;
+              } else if (data.result) {
+                imageUrl = data.result;
+              }
             }
 
             if (imageUrl) {

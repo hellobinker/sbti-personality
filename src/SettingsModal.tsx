@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { loadApiConfig, saveApiConfig, DEFAULT_API_CONFIG } from './config';
+import { loadApiConfig, saveApiConfig, DEFAULT_API_CONFIG, APIFormat } from './config';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -10,6 +10,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [apiEndpoint, setApiEndpoint] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [enableAPI, setEnableAPI] = useState(false);
+  const [apiFormat, setApiFormat] = useState<APIFormat>('openai');
   const [enableCanvasPreview, setEnableCanvasPreview] = useState(true);
   const [saved, setSaved] = useState(false);
 
@@ -20,6 +21,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
       setApiEndpoint(config.apiEndpoint);
       setApiKey(config.apiKey);
       setEnableAPI(config.enableAPI);
+      setApiFormat(config.apiFormat);
       setEnableCanvasPreview(config.enableCanvasPreview);
       setSaved(false);
     }
@@ -31,6 +33,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
       apiEndpoint,
       apiKey,
       enableAPI,
+      apiFormat,
       enableCanvasPreview,
     });
     setSaved(true);
@@ -141,6 +144,40 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             </p>
           </div>
 
+          {/* API格式选择 */}
+          <div>
+            <label className="block text-white/80 text-sm mb-2">
+              API格式
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setApiFormat('openai')}
+                className={`py-3 px-4 rounded-xl font-semibold transition-all ${
+                  apiFormat === 'openai'
+                    ? 'bg-pink-500 text-white shadow-lg'
+                    : 'bg-white/5 text-white/60 hover:bg-white/10'
+                }`}
+              >
+                🤖 OpenAI格式
+              </button>
+              <button
+                onClick={() => setApiFormat('custom')}
+                className={`py-3 px-4 rounded-xl font-semibold transition-all ${
+                  apiFormat === 'custom'
+                    ? 'bg-purple-500 text-white shadow-lg'
+                    : 'bg-white/5 text-white/60 hover:bg-white/10'
+                }`}
+              >
+                🔧 自定义格式
+              </button>
+            </div>
+            <p className="text-white/40 text-xs mt-2">
+              {apiFormat === 'openai'
+                ? '使用 OpenAI/DALL-E 兼容的请求和响应格式'
+                : '使用自定义API格式，需要返回图片URL或base64'}
+            </p>
+          </div>
+
           {/* Canvas预览开关 */}
           <div>
             <label className="flex items-center gap-3 cursor-pointer">
@@ -182,11 +219,34 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         {/* API格式说明 */}
         <div className="mt-6 p-4 bg-white/5 rounded-xl border border-white/10">
           <p className="text-white/80 text-sm font-semibold mb-2">📋 API格式要求</p>
-          <p className="text-white/50 text-xs mb-2">
-            你的API需要支持以下格式的POST请求：
-          </p>
-          <pre className="text-white/60 text-xs bg-black/30 p-3 rounded-lg overflow-x-auto">
-{`POST /generate
+          {apiFormat === 'openai' ? (
+            <>
+              <p className="text-white/50 text-xs mb-2">
+                OpenAI/DALL-E 格式的POST请求：
+              </p>
+              <pre className="text-white/60 text-xs bg-black/30 p-3 rounded-lg overflow-x-auto">
+{`POST /v1/images/generations
+Authorization: Bearer <API_KEY>
+Content-Type: application/json
+
+{
+  "model": "dall-e-3",
+  "prompt": "你的AI生成提示词",
+  "n": 1,
+  "size": "1024x1024"
+}`}
+              </pre>
+              <p className="text-white/50 text-xs mt-2">
+                响应格式: {"{ data: [{ url: '...' }] }"} 或 {"{ data: [{ b64_json: '...' }] }"}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-white/50 text-xs mb-2">
+                自定义格式的POST请求：
+              </p>
+              <pre className="text-white/60 text-xs bg-black/30 p-3 rounded-lg overflow-x-auto">
+{`POST /your-api-endpoint
 Content-Type: application/json
 
 {
@@ -199,10 +259,12 @@ Content-Type: application/json
     "humor": "幽默描述"
   }
 }`}
-          </pre>
-          <p className="text-white/50 text-xs mt-2">
-            API需要返回生成的图片URL或base64
-          </p>
+              </pre>
+              <p className="text-white/50 text-xs mt-2">
+                支持响应格式: url / imageUrl / image / b64_json
+              </p>
+            </>
+          )}
         </div>
 
         {/* 保存按钮 */}

@@ -1,18 +1,24 @@
 /**
  * SBTI API 配置
- * 配置AI图像生成API
+ * 配置AI图像生成API - 支持OpenAI格式
  */
+
+// API类型
+export type APIFormat = 'openai' | 'custom';
 
 // 默认API配置
 export const DEFAULT_API_CONFIG = {
   // API端点URL
   apiEndpoint: '',
 
-  // API密钥（可选）
+  // API密钥
   apiKey: '',
 
   // 是否启用API生成
   enableAPI: false,
+
+  // API格式类型
+  apiFormat: 'openai' as APIFormat,
 
   // 备用Canvas预览（API不可用时）
   enableCanvasPreview: true,
@@ -42,8 +48,8 @@ export const saveApiConfig = (config: Partial<typeof DEFAULT_API_CONFIG>): void 
   }
 };
 
-// 构建AI图像生成请求
-export const buildImageRequest = (
+// 构建OpenAI格式的图像生成请求
+export const buildOpenAIImageRequest = (
   userPhotoBase64: string,
   personality: {
     code: string;
@@ -56,7 +62,39 @@ export const buildImageRequest = (
 ): object => {
   const traitsText = personality.traits.join('、');
 
-  // 如果提供了自定义提示词，使用它；否则使用默认提示词
+  // 构建提示词
+  const prompt = customPrompt || `Convert this person into a Q-version anime chibi style character representing "${personality.name}" (${personality.code}) personality type.
+Style: cute chibi anime illustration, big head, small body, large expressive eyes, pastel colors.
+Character traits: ${traitsText}
+Humor vibe: ${personality.humor}
+Keep facial features recognizable but stylized in anime chibi format.
+Background: colorful gradient with floating elements and cute decorations.`;
+
+  // OpenAI格式 - 使用图片作为参考（如果是DALL-E 3或类似支持参考图的模型）
+  // 对于纯文本转图片的API，返回纯文本提示词
+  return {
+    model: "dall-e-3", // 或其他模型
+    prompt: prompt,
+    n: 1,
+    size: "1024x1024",
+    response_format: "url",
+  };
+};
+
+// 构建自定义格式的图像生成请求
+export const buildCustomImageRequest = (
+  userPhotoBase64: string,
+  personality: {
+    code: string;
+    name: string;
+    title: string;
+    traits: string[];
+    humor: string;
+  },
+  customPrompt?: string
+): object => {
+  const traitsText = personality.traits.join('、');
+
   const prompt = customPrompt || `Convert this person into a Q-version anime chibi style character representing "${personality.name}" (${personality.code}) personality type.
 Style: cute chibi anime illustration, big head, small body, large expressive eyes, pastel colors.
 Character traits: ${traitsText}
@@ -74,9 +112,47 @@ Background: colorful gradient with floating elements and cute decorations.`;
   };
 };
 
+// 构建AI图像生成请求（根据API格式选择）
+export const buildImageRequest = (
+  userPhotoBase64: string,
+  personality: {
+    code: string;
+    name: string;
+    title: string;
+    traits: string[];
+    humor: string;
+  },
+  customPrompt?: string,
+  apiFormat: APIFormat = 'openai'
+): object => {
+  if (apiFormat === 'openai') {
+    return buildOpenAIImageRequest(userPhotoBase64, personality, customPrompt);
+  } else {
+    return buildCustomImageRequest(userPhotoBase64, personality, customPrompt);
+  }
+};
+
+// 解析OpenAI格式的响应
+export const parseOpenAIResponse = (data: any): string | null => {
+  // OpenAI标准响应格式: { data: [{ url: "..." }] }
+  if (data?.data && Array.isArray(data.data) && data.data.length > 0) {
+    if (data.data[0].url) {
+      return data.data[0].url;
+    }
+    // 或者 base64 格式: { data: [{ b64_json: "..." }] }
+    if (data.data[0].b64_json) {
+      return `data:image/png;base64,${data.data[0].b64_json}`;
+    }
+  }
+  return null;
+};
+
 export default {
   DEFAULT_API_CONFIG,
   loadApiConfig,
   saveApiConfig,
   buildImageRequest,
+  buildOpenAIImageRequest,
+  buildCustomImageRequest,
+  parseOpenAIResponse,
 };
