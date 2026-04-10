@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { SBTI_TYPES, getTypeByCode, SBTIType } from './sbti-types';
 import { SBTI_QUESTIONS, calculateResult } from './sbti-questions';
-import { loadApiConfig, buildImageRequest, parseOpenAIResponse } from './config';
+import { loadApiConfig, buildImageRequest, parseOpenAIResponse, getFullApiUrl } from './config';
 import SettingsModal from './SettingsModal';
 import './App.css';
 
@@ -139,7 +139,7 @@ Background: colorful gradient with floating elements and cute decorations.`;
             headers['Authorization'] = `Bearer ${apiConfig.apiKey}`;
           }
 
-          const response = await fetch(apiConfig.apiEndpoint, {
+          const response = await fetch(getFullApiUrl(), {
             method: 'POST',
             headers,
             body: JSON.stringify(requestBody),

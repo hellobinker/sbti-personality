@@ -1,6 +1,6 @@
 /**
  * SBTI API 配置
- * 配置AI图像生成API - 支持OpenAI格式
+ * 配置AI图像生成API - 支持OpenAI格式和自定义API
  */
 
 // API类型
@@ -8,8 +8,11 @@ export type APIFormat = 'openai' | 'custom';
 
 // 默认API配置
 export const DEFAULT_API_CONFIG = {
-  // API端点URL
-  apiEndpoint: '',
+  // API基础URL（如 https://yunwu.ai）
+  baseUrl: 'https://yunwu.ai',
+
+  // API端点路径（如 /v1/images/generations）
+  apiEndpoint: '/v1/images/generations',
 
   // API密钥
   apiKey: '',
@@ -48,6 +51,14 @@ export const saveApiConfig = (config: Partial<typeof DEFAULT_API_CONFIG>): void 
   }
 };
 
+// 构建完整的API URL
+export const getFullApiUrl = (): string => {
+  const config = loadApiConfig();
+  const baseUrl = config.baseUrl.replace(/\/$/, ''); // 移除末尾斜杠
+  const endpoint = config.apiEndpoint.replace(/^\//, ''); // 移除开头斜杠
+  return `${baseUrl}/${endpoint}`;
+};
+
 // 构建OpenAI格式的图像生成请求
 export const buildOpenAIImageRequest = (
   userPhotoBase64: string,
@@ -70,10 +81,9 @@ Humor vibe: ${personality.humor}
 Keep facial features recognizable but stylized in anime chibi format.
 Background: colorful gradient with floating elements and cute decorations.`;
 
-  // OpenAI格式 - 使用图片作为参考（如果是DALL-E 3或类似支持参考图的模型）
-  // 对于纯文本转图片的API，返回纯文本提示词
+  // OpenAI格式请求
   return {
-    model: "dall-e-3", // 或其他模型
+    model: "dall-e-3",
     prompt: prompt,
     n: 1,
     size: "1024x1024",
@@ -151,6 +161,7 @@ export default {
   DEFAULT_API_CONFIG,
   loadApiConfig,
   saveApiConfig,
+  getFullApiUrl,
   buildImageRequest,
   buildOpenAIImageRequest,
   buildCustomImageRequest,

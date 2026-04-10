@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { loadApiConfig, saveApiConfig, DEFAULT_API_CONFIG, APIFormat } from './config';
+import { loadApiConfig, saveApiConfig, getFullApiUrl, APIFormat } from './config';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -7,7 +7,8 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  const [apiEndpoint, setApiEndpoint] = useState('');
+  const [baseUrl, setBaseUrl] = useState('https://yunwu.ai');
+  const [apiEndpoint, setApiEndpoint] = useState('/v1/images/generations');
   const [apiKey, setApiKey] = useState('');
   const [enableAPI, setEnableAPI] = useState(false);
   const [apiFormat, setApiFormat] = useState<APIFormat>('openai');
@@ -18,6 +19,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   useEffect(() => {
     if (isOpen) {
       const config = loadApiConfig();
+      setBaseUrl(config.baseUrl);
       setApiEndpoint(config.apiEndpoint);
       setApiKey(config.apiKey);
       setEnableAPI(config.enableAPI);
@@ -30,6 +32,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   // 保存配置
   const handleSave = () => {
     saveApiConfig({
+      baseUrl,
       apiEndpoint,
       apiKey,
       enableAPI,
@@ -42,13 +45,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
   // 测试API连接
   const testConnection = async () => {
-    if (!apiEndpoint) {
-      alert('请先输入API地址');
-      return;
-    }
-
     try {
-      const response = await fetch(apiEndpoint, {
+      const fullUrl = getFullApiUrl();
+      const response = await fetch(fullUrl, {
         method: 'GET',
         headers: apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {},
       });
@@ -76,7 +75,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         {/* 标题 */}
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-2xl font-black text-white">
-            ⚙️ API设置
+            API设置
           </h3>
           <button
             onClick={onClose}
@@ -101,36 +100,61 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                 }`}
               ></div>
             </div>
-            <span className="text-white font-semibold">启用自定义API</span>
+            <span className="text-white font-semibold">启用AI图像生成API</span>
           </label>
           <p className="text-white/40 text-sm mt-2">
-            开启后可配置自己的AI图像生成API
+            开启后可使用AI生成专属SBTI图片
           </p>
         </div>
 
         {/* API配置 */}
         <div className="space-y-4">
-          {/* API地址 */}
+          {/* API基础地址 */}
           <div>
             <label className="block text-white/80 text-sm mb-2">
-              API端点地址
+              API基础地址
             </label>
             <input
               type="url"
-              value={apiEndpoint}
-              onChange={(e) => setApiEndpoint(e.target.value)}
-              placeholder="https://api.example.com/generate"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder="https://yunwu.ai"
               className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-pink-500/50 transition-colors"
             />
             <p className="text-white/40 text-xs mt-1">
-              输入你的AI图像生成API地址
+              输入你的API服务地址（如 https://yunwu.ai）
+            </p>
+          </div>
+
+          {/* API端点 */}
+          <div>
+            <label className="block text-white/80 text-sm mb-2">
+              API端点
+            </label>
+            <input
+              type="text"
+              value={apiEndpoint}
+              onChange={(e) => setApiEndpoint(e.target.value)}
+              placeholder="/v1/images/generations"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-pink-500/50 transition-colors"
+            />
+            <p className="text-white/40 text-xs mt-1">
+              API端点路径（如 /v1/images/generations）
+            </p>
+          </div>
+
+          {/* 完整URL预览 */}
+          <div className="p-3 bg-white/5 rounded-xl border border-white/10">
+            <p className="text-white/50 text-xs mb-1">完整API地址：</p>
+            <p className="text-pink-400 text-sm font-mono break-all">
+              {getFullApiUrl()}
             </p>
           </div>
 
           {/* API密钥 */}
           <div>
             <label className="block text-white/80 text-sm mb-2">
-              API密钥 (可选)
+              API密钥
             </label>
             <input
               type="password"
@@ -158,7 +182,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                     : 'bg-white/5 text-white/60 hover:bg-white/10'
                 }`}
               >
-                🤖 OpenAI格式
+                OpenAI格式
               </button>
               <button
                 onClick={() => setApiFormat('custom')}
@@ -168,7 +192,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                     : 'bg-white/5 text-white/60 hover:bg-white/10'
                 }`}
               >
-                🔧 自定义格式
+                自定义格式
               </button>
             </div>
             <p className="text-white/40 text-xs mt-2">
@@ -205,27 +229,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         <div className="flex gap-3 mt-6">
           <button
             onClick={testConnection}
-            disabled={!apiEndpoint}
-            className={`flex-1 py-3 rounded-xl font-semibold transition-all ${
-              apiEndpoint
-                ? 'bg-white/10 text-white hover:bg-white/20'
-                : 'bg-white/5 text-white/40 cursor-not-allowed'
-            }`}
+            className="flex-1 py-3 rounded-xl font-semibold transition-all bg-white/10 text-white hover:bg-white/20"
           >
-            🔌 测试连接
+            测试连接
           </button>
         </div>
 
         {/* API格式说明 */}
         <div className="mt-6 p-4 bg-white/5 rounded-xl border border-white/10">
-          <p className="text-white/80 text-sm font-semibold mb-2">📋 API格式要求</p>
+          <p className="text-white/80 text-sm font-semibold mb-2">API格式要求</p>
           {apiFormat === 'openai' ? (
             <>
               <p className="text-white/50 text-xs mb-2">
                 OpenAI/DALL-E 格式的POST请求：
               </p>
               <pre className="text-white/60 text-xs bg-black/30 p-3 rounded-lg overflow-x-auto">
-{`POST /v1/images/generations
+{`POST ${apiEndpoint}
 Authorization: Bearer <API_KEY>
 Content-Type: application/json
 
@@ -246,22 +265,15 @@ Content-Type: application/json
                 自定义格式的POST请求：
               </p>
               <pre className="text-white/60 text-xs bg-black/30 p-3 rounded-lg overflow-x-auto">
-{`POST /your-api-endpoint
+{`POST ${apiEndpoint}
 Content-Type: application/json
 
 {
-  "image": "base64编码的图片",
-  "prompt": "AI生成提示词",
-  "personality": {
-    "code": "SEXY",
-    "name": "尤物",
-    "traits": ["魅力", "自信"],
-    "humor": "幽默描述"
-  }
+  "prompt": "AI生成提示词"
 }`}
               </pre>
               <p className="text-white/50 text-xs mt-2">
-                支持响应格式: url / imageUrl / image / b64_json
+                支持响应格式: url / imageUrl / image / b64_json / data[0].url
               </p>
             </>
           )}
@@ -273,7 +285,7 @@ Content-Type: application/json
             onClick={handleSave}
             className="flex-1 py-4 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
           >
-            {saved ? '✓ 已保存' : '💾 保存设置'}
+            {saved ? '已保存' : '保存设置'}
           </button>
           <button
             onClick={onClose}
@@ -282,19 +294,6 @@ Content-Type: application/json
             关闭
           </button>
         </div>
-
-        {/* 重置按钮 */}
-        <button
-          onClick={() => {
-            setApiEndpoint('');
-            setApiKey('');
-            setEnableAPI(false);
-            setEnableCanvasPreview(true);
-          }}
-          className="w-full mt-3 py-2 text-white/40 text-sm hover:text-white/60 transition-colors"
-        >
-          重置为默认设置
-        </button>
       </div>
     </div>
   );
