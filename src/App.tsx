@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { SBTI_TYPES, getTypeByCode, SBTIType } from './sbti-types';
 import { SBTI_QUESTIONS, calculateResult } from './sbti-questions';
-import { loadApiConfig, buildImageRequest, parseOpenAIResponse, getFullApiUrl } from './config';
+import { loadApiConfig, buildImageRequest, parseOpenAIResponse, parseChatCompletionsResponse, getFullApiUrl } from './config';
 import SettingsModal from './SettingsModal';
 import './App.css';
 
@@ -148,14 +148,18 @@ Background: colorful gradient with floating elements and cute decorations.`;
           if (response.ok) {
             const data = await response.json();
 
-            // 优先尝试OpenAI格式解析
+            // 尝试多种响应格式解析
             let imageUrl: string | null = null;
 
-            if (apiConfig.apiFormat === 'openai') {
+            // 1. 尝试 Chat Completions 格式（Nano Banana 等）
+            imageUrl = parseChatCompletionsResponse(data);
+
+            // 2. 如果失败，尝试 OpenAI 图片格式
+            if (!imageUrl && apiConfig.apiFormat === 'openai') {
               imageUrl = parseOpenAIResponse(data);
             }
 
-            // 如果OpenAI解析失败，尝试其他格式
+            // 3. 如果仍然失败，尝试其他常见格式
             if (!imageUrl) {
               if (typeof data === 'string') {
                 imageUrl = data.startsWith('data:') || data.startsWith('http')
@@ -171,6 +175,9 @@ Background: colorful gradient with floating elements and cute decorations.`;
                 imageUrl = data.url;
               } else if (data.result) {
                 imageUrl = data.result;
+              } else if (data.choices?.[0]?.message?.content) {
+                // Chat completions 格式兜底
+                imageUrl = parseChatCompletionsResponse(data);
               }
             }
 

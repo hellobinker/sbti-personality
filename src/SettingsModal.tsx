@@ -8,7 +8,7 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [baseUrl, setBaseUrl] = useState('https://yunwu.ai');
-  const [apiEndpoint, setApiEndpoint] = useState('/v1/images/generations');
+  const [apiEndpoint, setApiEndpoint] = useState('/v1/chat/completions');
   const [apiKey, setApiKey] = useState('');
   const [enableAPI, setEnableAPI] = useState(false);
   const [apiFormat, setApiFormat] = useState<APIFormat>('openai');
@@ -135,11 +135,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               type="text"
               value={apiEndpoint}
               onChange={(e) => setApiEndpoint(e.target.value)}
-              placeholder="/v1/images/generations"
+              placeholder="/v1/chat/completions"
               className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-pink-500/50 transition-colors"
             />
             <p className="text-white/40 text-xs mt-1">
-              API端点路径（如 /v1/images/generations）
+              API端点路径（如 /v1/chat/completions）
             </p>
           </div>
 
@@ -197,8 +197,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             </div>
             <p className="text-white/40 text-xs mt-2">
               {apiFormat === 'openai'
-                ? '使用 OpenAI/DALL-E 兼容的请求和响应格式'
-                : '使用自定义API格式，需要返回图片URL或base64'}
+                ? '使用 OpenAI/DALL-E 兼容的图片生成格式'
+                : '使用 Chat Completions 格式（如 Nano Banana 等多模态模型）'}
             </p>
           </div>
 
@@ -262,18 +262,26 @@ Content-Type: application/json
           ) : (
             <>
               <p className="text-white/50 text-xs mb-2">
-                自定义格式的POST请求：
+                Chat Completions 格式（Nano Banana 等）：
               </p>
               <pre className="text-white/60 text-xs bg-black/30 p-3 rounded-lg overflow-x-auto">
 {`POST ${apiEndpoint}
+Authorization: Bearer <API_KEY>
 Content-Type: application/json
 
 {
-  "prompt": "AI生成提示词"
+  "model": "nano-banana-2",
+  "messages": [{
+    "role": "user",
+    "content": [
+      {"type": "text", "text": "生成图片的提示词"},
+      {"type": "image_url", "image_url": {"url": "data:image/..."}}
+    ]
+  }]
 }`}
               </pre>
               <p className="text-white/50 text-xs mt-2">
-                支持响应格式: url / imageUrl / image / b64_json / data[0].url
+                响应格式: {"{ choices: [{ message: { content: 'url或base64' }}] }"}
               </p>
             </>
           )}

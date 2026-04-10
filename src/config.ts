@@ -11,8 +11,8 @@ export const DEFAULT_API_CONFIG = {
   // API基础URL（如 https://yunwu.ai）
   baseUrl: 'https://yunwu.ai',
 
-  // API端点路径（如 /v1/images/generations）
-  apiEndpoint: '/v1/images/generations',
+  // API端点路径（如 /v1/chat/completions）
+  apiEndpoint: '/v1/chat/completions',
 
   // API密钥
   apiKey: '',
@@ -91,7 +91,7 @@ Background: colorful gradient with floating elements and cute decorations.`;
   };
 };
 
-// 构建自定义格式的图像生成请求
+// 构建自定义格式的图像生成请求（Chat Completions 格式）
 export const buildCustomImageRequest = (
   userPhotoBase64: string,
   personality: {
@@ -112,13 +112,27 @@ Humor vibe: ${personality.humor}
 Keep facial features recognizable but stylized in anime chibi format.
 Background: colorful gradient with floating elements and cute decorations.`;
 
+  // Chat Completions 格式
   return {
-    image: userPhotoBase64,
-    prompt: prompt,
-    personality: personality,
-    negative_prompt: "realistic, photo, 3d render, deformed, ugly, bad quality",
-    style: "chibi_anime",
-    size: "1024x1024",
+    model: "nano-banana-2",
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: prompt
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: userPhotoBase64
+            }
+          }
+        ]
+      }
+    ],
+    max_tokens: 2048,
   };
 };
 
@@ -157,6 +171,38 @@ export const parseOpenAIResponse = (data: any): string | null => {
   return null;
 };
 
+// 解析Chat Completions格式的响应（用于 Nano Banana 等模型）
+export const parseChatCompletionsResponse = (data: any): string | null => {
+  // Chat completions 返回格式: { choices: [{ message: { content: "..." } }] }
+  // 可能是图片URL、base64或文本描述
+  if (data?.choices && Array.isArray(data.choices) && data.choices.length > 0) {
+    const content = data.choices[0]?.message?.content;
+
+    if (content) {
+      // 如果是完整的 data URL（base64图片）
+      if (content.startsWith('data:image')) {
+        return content;
+      }
+      // 如果是完整的 http URL
+      if (content.startsWith('http')) {
+        return content;
+      }
+      // 尝试解析JSON（可能是 { url: "...", ... } 或 { image_url: "...", ... }）
+      try {
+        const parsed = JSON.parse(content);
+        if (parsed.url) return parsed.url;
+        if (parsed.image_url) return parsed.image_url;
+        if (parsed.image) return parsed.image.startsWith('data:') ? parsed.image : `data:image/png;base64,${parsed.image}`;
+        if (parsed.b64_json) return `data:image/png;base64,${parsed.b64_json}`;
+      } catch (e) {
+        // 不是JSON，直接返回内容
+        return content;
+      }
+    }
+  }
+  return null;
+};
+
 export default {
   DEFAULT_API_CONFIG,
   loadApiConfig,
@@ -166,4 +212,5 @@ export default {
   buildOpenAIImageRequest,
   buildCustomImageRequest,
   parseOpenAIResponse,
+  parseChatCompletionsResponse,
 };
