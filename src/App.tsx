@@ -98,7 +98,50 @@ function App() {
       // 构建人格特征描述
       const traitsText = result.traits.join('、');
 
-      // 直接调用图片生成器
+      // 将文件转换为base64
+      const base64 = await fileToBase64(userPhotoFile);
+
+      // 构建AI提示词
+      const aiPrompt = `Convert this person into a Q-version anime chibi style character representing "${result.name}" (${result.code}) personality type.
+Style: cute chibi anime illustration, big head, small body, large expressive eyes, pastel colors.
+Character traits: ${traitsText}
+Humor vibe: ${result.humor}
+Keep facial features recognizable but stylized in anime chibi format.
+Background: colorful gradient with floating elements and cute decorations.`;
+
+      // 尝试调用API生成图片
+      try {
+        const response = await fetch('/api/generate-sbti', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            imageData: base64,
+            personality: {
+              code: result.code,
+              name: result.name,
+              title: result.title,
+              traits: result.traits,
+              humor: result.humor,
+            },
+            prompt: aiPrompt,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.imageUrl) {
+            setGeneratedImage(data.imageUrl);
+            setIsGenerating(false);
+            return;
+          }
+        }
+      } catch (apiError) {
+        console.log('API调用失败，使用Canvas预览:', apiError);
+      }
+
+      // 如果API不可用，使用Canvas即时预览
       const { generateCustomSBTI } = await import('./imageGenerator');
       const resultImage = await generateCustomSBTI(
         userPhotoFile,
@@ -114,6 +157,16 @@ function App() {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  // 将File转换为base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   };
 
   // 下载生成的图片
@@ -504,7 +557,7 @@ function App() {
                 生成你的专属SBTI形象
               </h3>
               <p className="text-white/60">
-                上传你的照片，AI将为你生成专属的{result.name}风格形象
+                上传你的照片，生成专属的{result.name}风格Q版卡通形象
               </p>
             </div>
 
@@ -576,6 +629,24 @@ function App() {
                     alt="生成的SBTI图片"
                     className="w-full rounded-2xl shadow-lg"
                   />
+                </div>
+                {/* AI增强提示 */}
+                <div className="mt-4 p-4 bg-gradient-to-r from-pink-500/20 to-purple-500/20 rounded-xl border border-pink-500/30">
+                  <p className="text-white/80 text-sm mb-2 flex items-center gap-2">
+                    <span>💡</span>
+                    <span>想要更精美的AI生成效果？</span>
+                  </p>
+                  <button
+                    onClick={() => {
+                      const prompt = `Convert this person into a Q-version anime chibi style character representing "${result.name}" (${result.code}) personality type. Style: cute chibi anime illustration, big head, small body, large expressive eyes, pastel colors. Character traits: ${result.traits.join('、')}. Humor vibe: ${result.humor}. Keep facial features recognizable but stylized in anime chibi format. Background: colorful gradient with floating elements and cute decorations.`;
+                      navigator.clipboard.writeText(prompt);
+                      alert('AI提示词已复制到剪贴板！\n\n你可以在 Midjourney、DALL-E、Stable Diffusion 等AI图像生成工具中使用这个提示词。');
+                    }}
+                    className="w-full py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                  >
+                    <span>🎨</span>
+                    <span>复制AI提示词（用于其他AI工具）</span>
+                  </button>
                 </div>
               </div>
             )}

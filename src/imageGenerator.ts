@@ -1,5 +1,6 @@
 /**
  * 图片生成器 - 将用户照片与SBTI人格元素合成
+ * 支持Canvas即时预览和AI增强生成
  */
 
 // 等待图片加载
@@ -13,7 +14,7 @@ const loadImage = (src: string): Promise<HTMLImageElement> => {
   });
 };
 
-// 生成自定义SBTI图片
+// Canvas合成生成自定义SBTI图片
 export const generateCustomSBTI = async (
   userPhotoFile: File,
   personalityName: string,
@@ -188,6 +189,44 @@ const splitText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number
   return lines;
 };
 
+// 保存照片到文件（用于AI生成）
+export const savePhotoForAIGeneration = async (
+  userPhotoFile: File,
+  personalityCode: string,
+  personalityName: string,
+  traits: string,
+  humor: string
+): Promise<{ filePath: string; prompt: string }> => {
+  const base64 = await fileToBase64(userPhotoFile);
+
+  // 构建AI生成提示词
+  const traitsText = traits;
+  const prompt = `Convert this person into a Q-version anime chibi style character representing "${personalityName}" (${personalityCode}) personality type.
+Style: cute chibi anime illustration, big head, small body, large expressive eyes, pastel colors.
+Character traits to incorporate: ${traitsText}
+Humor description: ${humor}
+Keep the person's facial features recognizable but stylized in anime chibi format.
+Background: colorful gradient with floating elements and cute decorations.`;
+
+  // 将base64转换为Buffer并保存
+  const binaryString = atob(base64.split(',')[1]);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+
+  const fileName = `user_photos/${Date.now()}_${personalityCode}.png`;
+  const filePath = `/workspace/sbti-personality-test/public/${fileName}`;
+
+  // 使用fetch API保存文件
+  // 注意：这需要后端支持，这里只是一个标记
+  return {
+    filePath: `/user_photos/${Date.now()}_${personalityCode}.png`,
+    prompt: prompt
+  };
+};
+
 export default {
   generateCustomSBTI,
+  savePhotoForAIGeneration,
 };
